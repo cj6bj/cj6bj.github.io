@@ -1,0 +1,484 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  MapPin, 
+  Plane, 
+  Utensils, 
+  ShoppingBag, 
+  Coffee, 
+  Hotel, 
+  Camera, 
+  X,
+  Sun,
+  CloudSnow,
+  Cloud,
+  Calendar,
+  Info
+} from 'lucide-react';
+
+// --- 資料結構 (維持不變) ---
+const tripData = [
+  {
+    day: 1,
+    date: "12/31",
+    weekday: "WED",
+    title: "抵達首爾・跨年",
+    weather: "snow",
+    temp: "-2°C",
+    events: [
+      {
+        time: "14:30",
+        title: "抵達仁川機場",
+        description: "BR170 抵達。搭乘 AREX 直達車前往首爾站，轉乘地鐵至乙支路。",
+        location: "仁川國際機場 (ICN)",
+        type: "flight",
+        detailData: {
+          title: "航班資訊 BR170",
+          content: "去程：桃園 (TPE) → 仁川 (ICN)\n時間：14:30 抵達\n航廈：第1航廈 (T1)\n備註：記得領取 SIM 卡與 T-Money 卡。"
+        }
+      },
+      {
+        time: "16:00",
+        title: "飯店 Check-in",
+        description: "先寄放行李，簡單梳洗。位置便利，位於乙支路入口站旁。",
+        location: "Ibis Ambassador Myeongdong",
+        type: "hotel",
+        detailData: {
+          title: "住宿資訊",
+          content: "飯店：伊必思明洞大使飯店\n地址：首爾中區南大門路 78\n電話：+82-2-6361-8888\n房型：標準雙人房"
+        }
+      },
+      {
+        time: "18:30",
+        title: "晚餐：馬鈴薯燉肉",
+        description: "暖呼呼的韓式燉肉，乙支路巷弄內的在地美味。",
+        location: "通仁馬鈴薯燉肉",
+        altLocation: "本粥 Bonjuk",
+        type: "food"
+      },
+      {
+        time: "21:00",
+        title: "明洞散步",
+        description: "步行至明洞商圈，感受跨年夜的熱鬧氣氛，買些街邊小吃。",
+        location: "明洞大街",
+        type: "walk"
+      }
+    ]
+  },
+  {
+    day: 2,
+    date: "01/01",
+    weekday: "THU",
+    title: "明洞・購物與美食",
+    weather: "sunny",
+    temp: "0°C",
+    events: [
+      {
+        time: "10:30",
+        title: "明洞購物",
+        description: "Olive Young 旗艦店補貨，逛逛服飾店。新年首日營業時間較晚。",
+        location: "明洞購物街",
+        type: "shopping"
+      },
+      {
+        time: "13:00",
+        title: "午餐：明洞餃子",
+        description: "米其林推薦，必點刀削麵與蒸餃。",
+        location: "明洞餃子 本店",
+        type: "food"
+      },
+      {
+        time: "15:00",
+        title: "明洞聖堂",
+        description: "欣賞哥德式建築，在對面的 Molto Espresso Bar 拍照。",
+        location: "明洞聖堂",
+        type: "camera"
+      },
+      {
+        time: "18:30",
+        title: "晚餐：韓式烤肉",
+        description: "肉質鮮美的厚切五花肉。",
+        location: "肉喜里 (Yuksiri)",
+        type: "food"
+      }
+    ]
+  },
+  {
+    day: 3,
+    date: "01/02",
+    weekday: "FRI",
+    title: "醫美・慢活午後",
+    weather: "cloud",
+    temp: "-1°C",
+    events: [
+      {
+        time: "10:00",
+        title: "Heyday 醫美",
+        description: "預約施作保養項目。術後請加強保濕，避免日曬。",
+        location: "Heyday Clinic",
+        type: "activity",
+        detailData: {
+          title: "醫美筆記",
+          content: "預約時間：10:00\n地點：明洞店\n注意事項：素顏前往，攜帶護照退稅。\n術後：三天內避免過熱水溫洗臉。"
+        }
+      },
+      {
+        time: "12:30",
+        title: "午餐：ISAAC",
+        description: "韓國必吃奶油吐司，簡單解決一餐。",
+        location: "Isaac Toast",
+        type: "food"
+      },
+      {
+        time: "14:30",
+        title: "咖啡時光",
+        description: "在星巴克 Reserve 休息，寫寫明信片。",
+        location: "Starbucks Reserve Byeoldabang",
+        type: "coffee"
+      },
+      {
+        time: "19:00",
+        title: "晚餐：乙支路",
+        description: "體驗「乙支路 Nogari 街」的復古氛圍或簡單湯飯。",
+        location: "乙支路3街",
+        type: "food"
+      }
+    ]
+  },
+  {
+    day: 4,
+    date: "01/03",
+    weekday: "SAT",
+    title: "聖水洞・文青散策",
+    weather: "sunny",
+    temp: "1°C",
+    events: [
+      {
+        time: "10:30",
+        title: "前往聖水洞",
+        description: "地鐵 2 號線直達。感受首爾布魯克林的工業風魅力。",
+        location: "聖水站",
+        type: "transport"
+      },
+      {
+        time: "11:00",
+        title: "Cafe Onion",
+        description: "廢墟風咖啡廳，必吃雪山麵包。",
+        location: "Cafe Onion Seongsu",
+        type: "coffee"
+      },
+      {
+        time: "14:00",
+        title: "品牌巡禮",
+        description: "Gentle Monster, Dior 概念店, 文創選物店。",
+        location: "Gentle Monster Seongsu",
+        type: "shopping"
+      },
+      {
+        time: "18:00",
+        title: "晚餐：聖水洞",
+        description: "挑選一間氛圍好的義大利麵或韓式定食。",
+        location: "聖水洞咖啡街",
+        type: "food"
+      }
+    ]
+  },
+  {
+    day: 5,
+    date: "01/04",
+    weekday: "SUN",
+    title: "告別首爾・返家",
+    weather: "cloud",
+    temp: "-1°C",
+    events: [
+      {
+        time: "09:00",
+        title: "早安 & 退房",
+        description: "Paris Baguette 買麵包，整理行李辦理退房。",
+        location: "Ibis Ambassador Myeongdong",
+        type: "hotel"
+      },
+      {
+        time: "10:30",
+        title: "前往機場",
+        description: "預留充裕時間搭乘機場快線。",
+        location: "仁川國際機場 (ICN)",
+        type: "transport"
+      },
+      {
+        time: "Flight",
+        title: "BR169 返台",
+        description: "仁川 (ICN) → 桃園 (TPE)。帶著滿滿的回憶與戰利品回家。",
+        location: "第1航廈",
+        type: "flight",
+        detailData: {
+          title: "航班資訊 BR169",
+          content: "回程：仁川 (ICN) → 桃園 (TPE)\n報到：建議起飛前 2.5 - 3 小時抵達櫃檯。"
+        }
+      }
+    ]
+  }
+];
+
+// --- 莫蘭迪/日系風格 Helper ---
+
+// 主色調：調整背景與莫蘭迪色系，使其更深沉
+const COLORS = {
+  TextPrimary: '#3A3A3A', // 深炭灰色
+  TextSecondary: '#6B6B6B', // 中等灰色
+  BackgroundMain: '#EFECE7', // 更深的米白色 / 淺灰米色
+  BackgroundCard: '#FFFFFF', // 卡片維持白色
+  Line: '#D1CFCB', // 淺灰線條
+  
+  // 更深沉的莫蘭迪色系
+  MorandiBlue: '#8C97A6', // 灰藍色
+  MorandiPink: '#D2C8C6', // 灰粉色
+  MorandiGreen: '#9AA897', // 灰綠色
+  MorandiBrown: '#BFB1A0', // 灰棕色
+};
+
+// 天氣圖示
+const getWeatherIcon = (type) => {
+  const className = "w-6 h-6 text-stone-600"; // 圖示顏色稍微加深
+  switch (type) {
+    case 'sunny': return <Sun className={className} />;
+    case 'snow': return <CloudSnow className={className} />;
+    case 'cloud': return <Cloud className={className} />;
+    default: return <Sun className={className} />;
+  }
+};
+
+// 活動圖示：圖示顏色比背景更重
+const getEventIcon = (type) => {
+  const className = "w-5 h-5";
+  switch (type) {
+    case 'flight': return <Plane className={`${className} text-[#67778F]`} />; // 深灰藍
+    case 'hotel': return <Hotel className={`${className} text-[#988C7A]`} />; // 深灰棕
+    case 'food': return <Utensils className={`${className} text-[#AE9C99]`} />; // 深灰粉
+    case 'shopping': return <ShoppingBag className={`${className} text-[#B1A09E]`} />;
+    case 'coffee': return <Coffee className={`${className} text-[#7B8B77]`} />; // 深灰綠
+    case 'camera': return <Camera className={`${className} text-[#859481]`} />;
+    case 'activity': return <Sun className={`${className} text-[#8C97A6]`} />;
+    default: return <MapPin className={`${className} text-stone-600`} />;
+  }
+};
+
+// 背景色：莫蘭迪色系，但更飽和一些
+const getEventBgColor = (type) => {
+  switch (type) {
+    case 'flight': return `bg-[${COLORS.MorandiBlue}]`;
+    case 'hotel': return `bg-[${COLORS.MorandiBrown}]`;
+    case 'food': return `bg-[${COLORS.MorandiPink}]`;
+    case 'shopping': return `bg-[${COLORS.MorandiPink}]`; 
+    case 'coffee': return `bg-[${COLORS.MorandiGreen}]`; 
+    case 'camera': return `bg-[${COLORS.MorandiGreen}]`;
+    case 'activity': return `bg-[${COLORS.MorandiBlue}]`;
+    default: return 'bg-[#D6D6D3]'; // 一般灰
+  }
+};
+
+export default function SeoulTripAppMorandiDarker() {
+  const [activeDay, setActiveDay] = useState(1);
+  const [modalData, setModalData] = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  const currentDayData = tripData.find(d => d.day === activeDay);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const openMap = (location) => {
+    const query = encodeURIComponent(location);
+    if (location) {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+    }
+  };
+
+  return (
+    // 全域背景：調整為更深的米白色 (BackgroundMain)
+    <div className="min-h-screen font-sans pb-32 selection:bg-stone-200" style={{ backgroundColor: COLORS.BackgroundMain, color: COLORS.TextPrimary }}>
+      
+      {/* 頂部導航 (Sticky Header) */}
+      <div 
+        className={`fixed top-0 left-0 right-0 z-20 transition-all duration-500 ease-in-out px-6 pt-safe
+        ${isScrolled 
+          ? `bg-[${COLORS.BackgroundMain}]/90 backdrop-blur-md py-4 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]` 
+          : 'bg-transparent py-8'}`}
+      >
+        <div className="flex justify-between items-start max-w-md mx-auto">
+          <div>
+            {/* 標題加粗，字體加大 */}
+            <h1 className={`font-extrabold tracking-wide transition-all duration-300 ${isScrolled ? 'text-2xl' : 'text-4xl'}`} style={{ color: COLORS.TextPrimary }}>
+              Day {currentDayData.day}
+            </h1>
+            
+            <div className={`overflow-hidden transition-all duration-500 ${isScrolled ? 'h-0 opacity-0' : 'h-auto opacity-100 pt-3'}`}>
+              <p className="text-base flex items-center gap-2" style={{ color: COLORS.TextSecondary }}>
+                <span className="bg-stone-100 px-2 py-0.5 rounded text-sm tracking-wide font-medium">{currentDayData.date} ({currentDayData.weekday})</span>
+                <span className="font-medium">{currentDayData.title}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end pt-1">
+            {getWeatherIcon(currentDayData.weather)}
+            <span className="text-sm mt-1 font-light tracking-widest" style={{ color: COLORS.TextSecondary }}>{currentDayData.temp}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 內容區域 Padding */}
+      <div className={`transition-all duration-300 ${isScrolled ? 'pt-24' : 'pt-40'}`}></div>
+
+      {/* 智慧時間軸 (Timeline) */}
+      <div className="px-5 max-w-md mx-auto relative">
+        
+        {/* 左側細線 */}
+        <div className="absolute left-[27px] top-6 bottom-12 w-[1px]" style={{ backgroundColor: COLORS.Line }}></div>
+
+        {currentDayData.events.map((event, index) => (
+          <div key={index} className="flex mb-10 relative group">
+            
+            {/* 時間軸節點 */}
+            <div className="absolute left-[19px] top-0 py-2 z-10" style={{ backgroundColor: COLORS.BackgroundMain }}>
+               <div className={`w-4 h-4 rounded-full border-[3px]`} style={{ borderColor: COLORS.BackgroundMain, backgroundColor: index === 0 ? COLORS.TextPrimary : COLORS.Line }}></div>
+            </div>
+
+            {/* 內容卡片 */}
+            <div className="flex-1 ml-10">
+              {/* 時間標籤：使用莫蘭迪灰棕色 */}
+              <span className="inline-block text-sm font-mono mb-2 tracking-wider" style={{ color: COLORS.MorandiBrown }}>
+                {event.time}
+              </span>
+
+              {/* 卡片本體：背景維持白色，圖示背景為莫蘭迪色 */}
+              <div 
+                className={`border rounded-xl p-5 transition-colors duration-300`}
+                style={{ backgroundColor: COLORS.BackgroundCard, borderColor: COLORS.Line }}
+              >
+                <div className="flex justify-between items-start">
+                  
+                  {/* 圖示與標題 */}
+                  <div className="flex items-start gap-3">
+                    {/* 圖示背景使用莫蘭迪色 */}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border border-transparent`} style={{ backgroundColor: getEventBgColor(event.type) }}>
+                      {getEventIcon(event.type)}
+                    </div>
+                    <div>
+                      {/* 標題加大加粗 */}
+                      <h3 className="font-extrabold text-lg leading-tight mb-1" style={{ color: COLORS.TextPrimary }}>
+                        {event.title}
+                      </h3>
+                      {/* 地點連結：使用莫蘭迪灰藍色 */}
+                      <button 
+                        onClick={() => openMap(event.location)}
+                        className="text-sm hover:text-stone-700 transition-colors flex items-center gap-1 border-b border-transparent hover:border-stone-400 pb-0.5"
+                        style={{ color: COLORS.MorandiBlue }}
+                      >
+                        <MapPin className="w-3 h-3" />
+                        {event.location}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 資訊按鈕 (如果有詳細資料) */}
+                  {event.detailData && (
+                    <button 
+                      onClick={() => setModalData(event.detailData)}
+                      className="text-stone-300 hover:text-stone-500 p-1"
+                    >
+                      <Info className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* 描述文字加大 */}
+                <p className="text-base mt-4 leading-relaxed font-light" style={{ color: COLORS.TextSecondary }}>
+                  {event.description}
+                </p>
+
+                {/* 備用地址 */}
+                {event.altLocation && (
+                  <div className="mt-3 pt-3 border-t flex items-center text-sm" style={{ borderColor: COLORS.Line, color: COLORS.TextSecondary }}>
+                     <span className="mr-2 opacity-70">或</span>
+                     <button onClick={() => openMap(event.altLocation)} className="hover:text-stone-700 border-b border-stone-300 pb-px transition-colors">
+                       {event.altLocation}
+                     </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 底部導航 (Muji Style with Morandi touch) */}
+      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-30">
+        <div className={`backdrop-blur-md border rounded-full px-2 py-2 flex items-center gap-1 shadow-lg`} style={{ backgroundColor: `${COLORS.BackgroundMain}E0`, borderColor: COLORS.Line }}>
+          {tripData.map((day) => (
+            <button
+              key={day.day}
+              onClick={() => {
+                setActiveDay(day.day);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`relative px-4 py-2 rounded-full transition-all duration-300 ${
+                activeDay === day.day 
+                  ? 'text-white shadow-md' 
+                  : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
+              }`}
+              style={{ backgroundColor: activeDay === day.day ? COLORS.MorandiBlue : 'transparent' }}
+            >
+              <span className="text-base font-bold tracking-widest">
+                D{day.day}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Modal 彈窗 (資訊卡片) */}
+      {modalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-black/10 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-xl shadow-2xl border overflow-hidden transform transition-all scale-100 p-8 relative" style={{ backgroundColor: COLORS.BackgroundCard, borderColor: COLORS.Line }}>
+            
+            <button 
+              onClick={() => setModalData(null)} 
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-6">
+              <span className="text-xs tracking-[0.2em] uppercase text-stone-500 border-b pb-1 mb-2 inline-block" style={{ borderColor: COLORS.Line }}>
+                詳細資訊
+              </span>
+              <h3 className="text-2xl font-bold" style={{ color: COLORS.TextPrimary }}>{modalData.title}</h3>
+            </div>
+
+            <div className="space-y-4">
+              <p className="whitespace-pre-line text-base leading-7 font-light" style={{ color: COLORS.TextSecondary }}>
+                {modalData.content}
+              </p>
+            </div>
+            
+            <div className="mt-8">
+              <button 
+                onClick={() => setModalData(null)}
+                className={`w-full text-white font-bold text-sm tracking-widest py-3 rounded-lg transition-colors uppercase`}
+                style={{ backgroundColor: COLORS.MorandiBlue }}
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
