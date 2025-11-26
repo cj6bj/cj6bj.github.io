@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首爾 5 天 4 夜 行程表</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Lucide Icons (用於圖示) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* --- 應用配色方案 (V10 - 紙質宋體暖調) --- */
+        :root {
+            --color-text-primary: #AA5F58;     /* 主標題/時間 (紅棕 - ACCENT) */
+            --color-text-secondary: #5B4F63;   /* 次要文字/描述 (紫灰 - DARK TEXT) */
+            --color-background-main: #F4EAE0;  /* 主背景 (淺米杏色) */
+            --color-line: #D0C5B0;             /* 分隔線/細節線 (柔和中間色) */
+            
+            /* 卡片顏色 */
+            --color-card-light-bg: #FFFDFC;    /* 卡片背景色 (極淺暖白色) */
+            --color-card-dark-text: #4A4050;   /* 卡片內部深色字體 (保證可讀性) */
+            --color-card-highlight: #AA5F58;   /* 卡片內部連結/標題亮色 (主色) */
+
+            /* Icon 柔和背景色 */
+            --color-icon-bg-unified: #AA5F5815; 
+            --color-icon-unified: #5B4F63;      
+        }
+
+        body {
+            /* 字體切換為 思源宋體 (Noto Serif TC) */
+            font-family: 'Noto Serif TC', 'Source Han Serif TC', 'Serif', serif; 
+            background-color: var(--color-background-main);
+            color: var(--color-text-primary);
+            
+            /* 襯線體需要較大的行高和字距來維持易讀性 */
+            line-height: 1.8; 
+            letter-spacing: 0.05em;
+
+            /* --- PAPER TEXTURE EFFECT (紙質紋理效果) --- */
+            /* 使用透明漸層模擬微小的顆粒/纖維感 */
+            background-image: 
+                /* 1. 模擬深色纖維/小顆粒 */
+                radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px),
+                /* 2. 模擬淺色高光/光線變化 */
+                radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px);
+            
+            /* 設定重複模式和密度 */
+            background-size: 50px 50px, 30px 30px; 
+            /* 輕微偏移，讓兩種顆粒不重疊 */
+            background-position: 0 0, 15px 15px; 
+        }
+        
+        /* 標題字體特化 */
+        #main-title {
+            color: var(--color-text-primary); 
+            font-weight: 900; 
+        }
+
+        /* 韓國時間大字體 (數字部分繼續使用無襯線體 Inter，保持時間數字的清晰度) */
+        #korea-time-display {
+            color: var(--color-text-primary) !important;
+            letter-spacing: 0.05em; 
+            font-family: 'Inter', sans-serif; 
+        }
+
+        /* 自定義滾動條樣式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        
+        .icon {
+            stroke-width: 1.5;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        .timeline-line {
+            background-color: var(--color-line);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="min-h-screen pb-32">
+        <!-- 應用程式內容將在這裡渲染 -->
+    </div>
+
+    <!-- Modal 彈窗結構 -->
+    <div id="modal-container" class="hidden fixed inset-0 z-50 items-center justify-center px-6 bg-black/10 backdrop-blur-sm">
+        <div id="modal-content" class="w-full max-w-sm rounded-xl shadow-2xl border overflow-hidden transform transition-all scale-100 p-8 relative bg-white" 
+             style="border-color: var(--color-line);">
+            
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1">
+                <i data-lucide="x" class="w-5 h-5 icon"></i>
+            </button>
+
+            <div class="mb-6">
+                <span class="text-xs tracking-[0.2em] uppercase text-stone-500 border-b pb-1 mb-2 inline-block" style="border-color: var(--color-line);">
+                    詳細資訊
+                </span>
+                <h3 id="modal-title" class="text-2xl font-bold" style="color: var(--color-text-primary);"></h3>
+            </div>
+
+            <div class="space-y-4">
+                <p id="modal-body" class="whitespace-pre-line text-base leading-7 font-light" style="color: var(--color-text-secondary);"></p>
+            </div>
+            
+            <div class="mt-8">
+                <button 
+                    onclick="closeModal()"
+                    class="w-full text-white font-bold text-sm tracking-widest py-3 rounded-lg transition-colors uppercase"
+                    style="background-color: var(--color-text-primary);" 
+                >
+                    我知道了
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 行程資料 (已修正所有日期的星期) ---
+        const tripData = [
+            {
+                day: 1, date: "12/31", weekday: "WED", title: "抵達首爾・跨年", weather: "snow", temp: "-2°C",
+                events: [
+                    { time: "14:30", title: "抵達仁川機場", description: "BR170 抵達。搭乘 AREX 直達車前往首爾站，轉乘地鐵至乙支路。", location: "仁川國際機場 (ICN)", type: "flight", detailData: { title: "航班資訊 BR170", content: "去程：桃園 (TPE) → 仁川 (ICN)\n時間：14:30 抵達\n航廈：第1航廈 (T1)\n備註：記得領取 SIM 卡與 T-Money 卡。" } },
+                    { time: "16:00", title: "飯店 Check-in", description: "先寄放行李，簡單梳洗。位置便利，位於乙支路入口站旁。", location: "Ibis Ambassador Myeongdong", type: "hotel", detailData: { title: "住宿資訊", content: "飯店：伊必思明洞大使飯店\n地址：首爾中區南大門路 78\n電話：+82-2-6361-8888\n房型：標準雙人房" } },
+                    { time: "18:30", title: "晚餐：馬鈴薯燉肉", description: "暖呼呼的韓式燉肉，乙支路巷弄內的在地美味。", location: "通仁馬鈴薯燉肉", altLocation: "本粥 Bonjuk", type: "food" },
+                    { time: "21:00", title: "明洞散步", description: "步行至明洞商圈，感受跨年夜的熱鬧氣氛，買些街邊小吃。", location: "明洞大街", type: "walk" }
+                ]
+            },
+            {
+                day: 2, date: "01/01", weekday: "THU", title: "明洞・購物與美食", weather: "sunny", temp: "0°C",
+                events: [
+                    { time: "10:30", title: "明洞購物", description: "Olive Young 旗艦店補貨，逛逛服飾店。新年首日營業時間較晚。", location: "明洞購物街", type: "shopping" },
+                    { time: "13:00", title: "午餐：明洞餃子", description: "米其林推薦，必點刀削麵與蒸餃。", location: "明洞餃子 本店", type: "food" },
+                    { time: "15:00", title: "明洞聖堂", description: "欣賞哥德式建築，在對面的 Molto Espresso Bar 拍照。", location: "明洞聖堂", type: "camera" },
+                    { time: "18:30", title: "晚餐：韓式烤肉", description: "肉質鮮美的厚切五花肉。", location: "肉喜里 (Yuksiri)", type: "food" }
+                ]
+            },
+            {
+                day: 3, date: "01/02", weekday: "FRI", title: "醫美・慢活午後", weather: "cloud", temp: "-1°C",
+                events: [
+                    { time: "10:00", title: "Heyday 醫美", description: "預約施作保養項目。術後請加強保濕，避免日曬。", location: "Heyday Clinic", type: "activity", detailData: { title: "醫美筆記", content: "預約時間：10:00\n地點：明洞店\n注意事項：素顏前往，攜帶護照退稅。\n術後：三天內避免過熱水溫洗臉。" } },
+                    { time: "12:30", title: "午餐：ISAAC", description: "韓國必吃奶油吐司，簡單解決一餐。", location: "Isaac Toast", type: "food" },
+                    { time: "14:30", title: "咖啡時光", description: "在星巴克 Reserve 休息，寫寫明信片。", location: "Starbucks Reserve Byeoldabang", type: "coffee" },
+                    { time: "19:00", title: "晚餐：乙支路", description: "體驗「乙支路 Nogari 街」的復古氛圍或簡單湯飯。", location: "乙支路3街", type: "food" }
+                ]
+            },
+            {
+                day: 4, date: "01/03", weekday: "SAT", title: "聖水洞・文青散策", weather: "sunny", temp: "1°C",
+                events: [
+                    { time: "10:30", title: "前往聖水洞", description: "地鐵 2 號線直達。感受首爾布魯克林的工業風魅力。", location: "聖水站", type: "transport" },
+                    { time: "11:00", title: "Cafe Onion", description: "廢墟風咖啡廳，必吃雪山麵包。 (行程必去)", location: "Cafe Onion Seongsu", type: "coffee" },
+                    { time: "12:30", title: "午餐：聖水站周邊", description: "韓式辣燉雞或輕食沙拉。", location: "聖水美食街", type: "food" },
+                    { time: "14:00", title: "Dior 概念店參觀", description: "聖水洞限定的玻璃屋快閃店，適合拍照打卡。", location: "Dior Concept Store", type: "camera" },
+                    
+                    /* --- nudake 可頌行程 (15:00) --- */
+                    { time: "15:00", title: "nudake 旗艦店", description: "Gentle Monster 旗下的藝術甜點店，必點 Peak Cake (可頌蛋糕) 和 Black Croissant。", location: "nudake 聖水", type: "coffee" },
+                    
+                    { time: "16:30", title: "Blue Bottle 咖啡", description: "享受簡約風格和高品質手沖咖啡。", location: "Blue Bottle Coffee Seongsu", type: "coffee" },
+                    { time: "17:30", title: "文創選物店巡禮", description: "逛逛 ADER ERROR 旗艦店和各類在地設計師小店。", location: "聖水洞設計街", type: "shopping" },
+                    { time: "19:00", title: "晚餐：聖水洞", description: "挑選一間氛圍好的義大利麵或韓式定食。", location: "聖水洞咖啡街", type: "food" }
+                ]
+            },
+            {
+                day: 5, date: "01/04", weekday: "SUN", title: "告別首爾・返家", weather: "cloud", temp: "-1°C",
+                events: [
+                    { time: "09:00", title: "早安 & 退房", description: "Paris Baguette 買麵包，整理行李辦理退房。", location: "Ibis Ambassador Myeongdong", type: "hotel" },
+                    { time: "10:30", title: "前往機場", description: "預留充裕時間搭乘機場快線。", location: "仁川國際機場 (ICN)", type: "transport" },
+                    { time: "Flight", title: "BR169 返台", description: "仁川 (ICN) → 桃園 (TPE)。帶著滿滿的回憶與戰利品回家。", location: "第1航廈", type: "flight", detailData: { title: "航班資訊 BR169", content: "回程：仁川 (ICN) → 桃園 (TPE)\n報到：建議起飛前 2.5 - 3 小時抵達櫃檯。" } }
+                ]
+            }
+        ];
+
+        // --- 全域狀態與變數 ---
+        let activeDay = 1; // 預設跳轉到 Day 1 (已修改)
+        let isScrolled = false;
+        let timeInterval;
+        
+        // --- 輔助函數 ---
+
+        function getIcon(name, classes) {
+            return `<i data-lucide="${name}" class="${classes} icon"></i>`;
+        }
+        
+        function getWeatherIcon(type) {
+            const className = "w-8 h-8";
+            const colorClass = 'text-[--color-text-secondary]';
+            switch (type) {
+                case 'sunny': return getIcon('sun', `${className} ${colorClass}`);
+                case 'snow': return getIcon('cloud-snow', `${className} ${colorClass}`);
+                case 'cloud': return getIcon('cloud', `${className} ${colorClass}`);
+                default: return getIcon('sun', `${className} ${colorClass}`);
+            }
+        }
+
+        function getEventIcon(type) {
+            const className = "w-5 h-5";
+            let iconName = 'map-pin';
+            let iconColor = 'text-[--color-icon-unified]'; 
+            
+            switch (type) {
+                case 'flight': iconName = 'plane'; break; 
+                case 'hotel': iconName = 'hotel'; break; 
+                case 'food': iconName = 'utensils'; break; 
+                case 'shopping': iconName = 'shopping-bag'; break;
+                case 'coffee': iconName = 'coffee'; break; 
+                case 'camera': iconName = 'camera'; break;
+                case 'activity': iconName = 'sun'; break;
+                default: iconName = 'map-pin'; break;
+            }
+            return getIcon(iconName, `${className} ${iconColor}`);
+        }
+
+        function getEventBgColor(type) {
+            return 'var(--color-icon-bg-unified)';
+        }
+
+        function updateKoreanTime() {
+            const timeDisplayElement = document.getElementById('korea-time-display'); 
+            const infoElement = document.getElementById('korea-time-info'); 
+
+            if (!timeDisplayElement || !infoElement) return;
+
+            const now = new Date();
+            const options = {
+                timeZone: 'Asia/Seoul',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            };
+            const formatter = new Intl.DateTimeFormat('zh-Hant', options);
+            const kstTime = formatter.format(now);
+            
+            timeDisplayElement.textContent = kstTime;
+            
+            infoElement.innerHTML = `
+                <i data-lucide="calendar" class="w-4 h-4 text-[--color-text-secondary] icon"></i>
+                <span class="font-semibold text-sm tracking-wide" style="color: var(--color-text-secondary);">韓國本地時間 (KST)</span>
+            `;
+
+            lucide.createIcons();
+        }
+
+        function openMap(location) {
+            if (location) {
+                const query = encodeURIComponent(location);
+                window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+            }
+        }
+
+        function openModal(title, content) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-body').innerHTML = content.replace(/\n/g, '<br>');
+            document.getElementById('modal-title').style.color = 'var(--color-text-primary)';
+            document.getElementById('modal-body').style.color = 'var(--color-text-secondary)';
+            
+            document.getElementById('modal-container').classList.remove('hidden');
+            document.getElementById('modal-container').classList.add('flex', 'animate-fade-in');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-container').classList.add('hidden');
+            document.getElementById('modal-container').classList.remove('flex', 'animate-fade-in');
+        }
+
+        // 渲染頂部 Hero 區塊
+        function renderHeader(data, scrolled) {
+            const header = document.createElement('div');
+            // Header 背景在滾動時使用主背景色與模糊效果，並將 padding 縮小 (py-3)
+            // 滾動時，背景應當使用無紋理的純色/模糊，確保文字清晰
+            const isScrolledClass = scrolled 
+                ? 'bg-[--color-background-main]/95 backdrop-blur-sm py-3 shadow-[0_1px_0_0_var(--color-line)]' 
+                : 'bg-transparent py-8';
+            
+            header.id = 'header';
+            header.className = `fixed top-0 left-0 right-0 z-20 transition-all duration-500 ease-in-out px-6 pt-safe ${isScrolledClass}`;
+            
+            header.innerHTML = `
+                <div class="flex flex-col max-w-md mx-auto">
+                    <div class="flex justify-between items-start">
+                        <!-- 左側標題與時間 -->
+                        <div>
+                            <!-- 標題 -->
+                            <h1 id="main-title" class="font-extrabold tracking-wide transition-all duration-300 ${scrolled ? 'text-2xl' : 'text-4xl'}">
+                                Day ${data.day}
+                            </h1>
+                            
+                            <!-- 韓國本地時間：大字體顯示 HH:MM -->
+                            <div id="korea-time-display" class="font-extrabold mt-1 mb-1 transition-all duration-300 ${scrolled ? 'text-xl' : 'text-4xl'}">
+                                <!-- 時間將在這裡顯示 -->
+                            </div>
+                            
+                            <!-- 韓國本地時間資訊 (小字體 KST) -->
+                            <div id="korea-time-info" class="text-stone-600 flex items-center gap-1 mb-1">
+                                <!-- JS 會更新此處 -->
+                            </div>
+                        </div>
+
+                        <!-- 右側天氣 -->
+                        <div class="flex flex-col items-end pt-1">
+                            ${getWeatherIcon(data.weather)}
+                            <span class="text-sm mt-1 font-light tracking-widest" style="color: var(--color-text-secondary);">${data.temp}</span>
+                        </div>
+                    </div>
+
+                    <!-- 日期與標題 (滾動時隱藏) -->
+                    <div class="overflow-hidden transition-all duration-500 ${scrolled ? 'h-0 opacity-0' : 'h-auto opacity-100 pt-3'}" style="padding-top: ${scrolled ? '0' : '0.75rem'} !important;">
+                        <p class="text-base flex items-center gap-2" style="color: var(--color-text-secondary);">
+                            <!-- 日期背景使用柔和的線條色，文字使用次要文字色 -->
+                            <span class="px-2 py-0.5 rounded text-sm tracking-wide font-medium" style="color: var(--color-text-secondary); background-color: var(--color-line); border: 1px solid var(--color-line);">${data.date} (${data.weekday})</span>
+                            <span class="font-medium">${data.title}</span>
+                        </p>
+                    </div>
+                </div>
+            `;
+            return header.outerHTML;
+        }
+
+        // 渲染時間軸卡片
+        function renderTimeline(events) {
+            let eventsHTML = events.map((event, index) => {
+                const mapPinIcon = getIcon('map-pin', 'w-3 h-3');
+                const infoIcon = getIcon('info', 'w-5 h-5');
+                const iconHtml = getEventIcon(event.type);
+                const bgColor = getEventBgColor(event.type);
+                
+                const modalButton = event.detailData ? `
+                    <button 
+                        onclick="openModal('${event.detailData.title}', \`${event.detailData.content}\`)"
+                        class="p-1 hover:text-[--color-card-highlight] transition-colors"
+                        style="color: var(--color-text-secondary);"
+                    >
+                        ${infoIcon}
+                    </button>
+                ` : '';
+
+                // 備用地點 
+                const altLocationHtml = event.altLocation ? `
+                    <div class="mt-4 pt-4 border-t flex items-center text-sm" style="border-color: var(--color-line); color: var(--color-card-dark-text);">
+                        <span class="mr-2 opacity-70">或</span>
+                        <button onclick="openMap('${event.altLocation}')" class="font-semibold transition-colors hover:text-[--color-card-highlight] border-b border-transparent pb-px">
+                            ${event.altLocation}
+                        </button>
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="flex mb-10 relative group">
+                        
+                        <!-- 時間軸節點 -->
+                        <div class="absolute left-[27px] top-0 py-2 z-10" style="background-color: var(--color-background-main);">
+                            <div class="w-4 h-4 rounded-full border-[3px]" style="border-color: var(--color-background-main); background-color: ${index === 0 ? 'var(--color-text-primary)' : 'var(--color-line)'};"></div>
+                        </div>
+
+                        <!-- 內容卡片 -->
+                        <div class="flex-1 ml-10">
+                            <!-- 時間標籤 -->
+                            <span class="inline-block text-sm font-mono mb-2 tracking-wider" style="color: var(--color-text-primary);">
+                                ${event.time}
+                            </span>
+
+                            <!-- 卡片本體 (背景色使用極淺暖白色，確保紋理只在背景出現) -->
+                            <div class="border rounded-xl p-5 transition-colors duration-300 shadow-lg" 
+                                 style="background-color: var(--color-card-light-bg); border-color: var(--color-line); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);">
+                                <div class="flex justify-between items-start">
+                                    
+                                    <!-- 圖示與標題 -->
+                                    <div class="flex items-start gap-3">
+                                        <!-- 圖示顏色統一 -->
+                                        <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background-color: ${bgColor};">
+                                            ${iconHtml}
+                                        </div>
+                                        <div>
+                                            <!-- 標題文字 -->
+                                            <h3 class="font-extrabold text-lg leading-tight mb-1" style="color: var(--color-card-highlight);">
+                                                ${event.title}
+                                            </h3>
+                                            <!-- 地點連結 -->
+                                            <button 
+                                                onclick="openMap('${event.location}')"
+                                                class="text-sm transition-colors flex items-center gap-1 border-b border-transparent hover:border-b-[--color-card-highlight] pb-0.5"
+                                                style="color: var(--color-card-dark-text);"
+                                            >
+                                                ${mapPinIcon}
+                                                ${event.location}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    ${modalButton}
+                                </div>
+
+                                <!-- 描述文字 -->
+                                <p class="text-base mt-4 leading-relaxed font-light" style="color: var(--color-card-dark-text);">
+                                    ${event.description}
+                                </p>
+
+                                ${altLocationHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="px-5 max-w-md mx-auto relative">
+                    <!-- 左側細線 -->
+                    <div class="absolute left-[27px] top-6 bottom-12 w-[1px] timeline-line"></div>
+                    ${eventsHTML}
+                </div>
+            `;
+        }
+
+        // 渲染底部導航
+        function renderNav() {
+            const navButtons = tripData.map(dayData => {
+                const isActive = dayData.day === activeDay;
+                const buttonClass = isActive 
+                    ? 'text-white shadow-md' 
+                    : 'text-[--color-text-secondary] hover:bg-stone-50/50';
+                const buttonStyle = isActive ? `background-color: var(--color-text-primary);` : 'background-color: transparent;';
+
+                return `
+                    <button
+                        onclick="setActiveDay(${dayData.day})"
+                        class="relative px-4 py-2 rounded-full transition-all duration-300 ${buttonClass}"
+                        style="${buttonStyle}"
+                    >
+                        <span class="text-base font-bold tracking-widest">
+                            D${dayData.day}
+                        </span>
+                    </button>
+                `;
+            }).join('');
+
+            return `
+                <div class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-30">
+                    <div class="backdrop-blur-md border rounded-full px-2 py-2 flex items-center gap-1 shadow-xl" 
+                         style="background-color: var(--color-background-main); border-color: var(--color-line);">
+                        ${navButtons}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // --- 核心渲染邏輯 ---
+        
+        function renderApp() {
+            const app = document.getElementById('app');
+            const currentDayData = tripData.find(d => d.day === activeDay);
+            
+            // 修正 Bug: 內容 padding 設置為固定值 (pt-52, 208px)，始終推開內容，避免被頂部導航欄遮擋。
+            const paddingClass = 'pt-52'; 
+            
+            app.innerHTML = `
+                ${renderHeader(currentDayData, isScrolled)}
+                <div class="transition-all duration-300 ${paddingClass}"></div>
+                ${renderTimeline(currentDayData.events)}
+                ${renderNav()}
+            `;
+
+            lucide.createIcons();
+            updateKoreanTime();
+        }
+
+        function setActiveDay(day) {
+            if (activeDay !== day) {
+                activeDay = day;
+                window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                renderApp();
+            }
+        }
+        
+        // 處理滾動事件以更新標題樣式
+        function handleScroll() {
+            const newScrolledState = window.scrollY > 20;
+            if (isScrolled !== newScrolledState) {
+                isScrolled = newScrolledState;
+                const currentDayData = tripData.find(d => d.day === activeDay);
+                
+                // 只更新 header HTML 即可
+                const headerElement = document.getElementById('header');
+                if (headerElement) {
+                    headerElement.outerHTML = renderHeader(currentDayData, isScrolled);
+
+                    lucide.createIcons();
+                    updateKoreanTime();
+                }
+            }
+        }
+        
+        // --- 初始化 ---
+        window.onload = () => {
+            renderApp();
+            window.addEventListener('scroll', handleScroll);
+            timeInterval = setInterval(updateKoreanTime, 1000); 
+        };
+        
+        window.onbeforeunload = () => {
+            clearInterval(timeInterval);
+        };
+    </script>
+</body>
+</html>
+
