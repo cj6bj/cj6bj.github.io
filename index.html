@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Seoul Trip 2025</title>
+    
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- SortableJS (拖曳排序) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary: #AA5F58;
+            --bg-color: #F4EAE0;
+            --card-bg: #FFFDFC;
+            --text-main: #5B4F63;
+        }
+        
+        body {
+            font-family: 'Noto Serif TC', serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            background-image: radial-gradient(circle, rgba(0,0,0,0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
+        }
+
+        .font-eng { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        #map { height: 100%; width: 100%; z-index: 1; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .pt-safe { padding-top: env(safe-area-inset-top); }
+
+        /* Marker Icon Style */
+        .custom-div-icon { background: transparent; border: none; }
+        .marker-pin {
+            width: 30px; height: 30px; border-radius: 50% 50% 50% 0;
+            background: #AA5F58; position: absolute; transform: rotate(-45deg);
+            left: 50%; top: 50%; margin: -15px 0 0 -15px;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+        }
+        .marker-pin::after {
+            content: ''; width: 14px; height: 14px; margin: 8px 0 0 8px;
+            background: #fff; position: absolute; border-radius: 50%;
+        }
+
+        /* 拖曳樣式 */
+        .sortable-ghost { opacity: 0.4; background: #AA5F5810; border: 2px dashed #AA5F58; }
+        .drag-handle { cursor: grab; touch-action: none; }
+
+        /* Transitions */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .slide-up-enter-active, .slide-up-leave-active { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
+    </style>
+</head>
+<body class="h-screen w-full overflow-hidden text-[#5B4F63]">
+
+    <div id="app" class="h-full flex flex-col relative">
+
+        <!-- 1. Header -->
+        <header class="flex-none px-6 pt-safe pb-4 bg-[#F4EAE0]/95 backdrop-blur-sm z-20 border-b border-[#AA5F58]/10 shadow-sm">
+            <div class="flex justify-between items-end mt-2">
+                <div>
+                    <h1 class="text-3xl font-black text-[#AA5F58] tracking-widest font-eng leading-none">SEOUL<br>TRIP</h1>
+                    <div class="mt-2 flex items-center gap-2">
+                        <span class="px-2 py-0.5 bg-[#AA5F58] text-white text-xs font-bold rounded-full font-eng shadow-sm">DAY {{ currentDay + 1 }}</span>
+                        <span class="text-sm font-bold text-[#5B4F63]">{{ currentDayData.date }}</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] font-bold text-gray-400 tracking-widest font-eng mb-0.5">KST TIME</div>
+                    <div class="text-4xl font-black text-[#AA5F58] font-eng leading-none tracking-tight">{{ kstTime }}</div>
+                    
+                    <!-- 天氣連結 (Windy) -->
+                    <a href="https://www.windy.com/?37.5665,126.9780,11" target="_blank" 
+                       class="mt-1 flex items-center justify-end gap-1 text-xs font-bold text-gray-500 bg-white/50 px-2 py-0.5 rounded-full inline-flex hover:bg-white hover:text-[#AA5F58] transition-colors cursor-pointer shadow-sm">
+                        <i id="weather-icon" class="fa-solid fa-cloud text-[#AA5F58]"></i>
+                        <span id="current-weather">讀取中...</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[8px] opacity-50 ml-0.5"></i>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- 2. Main Content -->
+        <main class="flex-1 overflow-y-auto no-scrollbar relative pb-32 bg-[#F4EAE0]" ref="mainContent">
+            
+            <!-- Itinerary View -->
+            <div v-show="currentView === 'itinerary'" class="px-4 py-6 animate-fade-in min-h-full">
+                
+                <!-- Summary Card -->
+                <div class="mb-8 p-4 bg-white/60 rounded-2xl border border-[#AA5F58]/20 shadow-sm">
+                    <h3 class="font-bold text-[#AA5F58] text-sm mb-2 flex items-center"><i class="fa-solid fa-star mr-2"></i>今日重點</h3>
+                    <p class="text-sm leading-relaxed whitespace-pre-line text-gray-700 font-medium">{{ currentDayData.summary }}</p>
+                </div>
+
+                <div class="relative pl-4 space-y-8" ref="eventsContainer">
+                    <!-- Timeline Line -->
+                    <div class="absolute left-[11px] top-4 bottom-4 w-[2px] bg-[#e5d5c5]"></div>
+
+                    <!-- Event Item -->
+                    <div v-for="(item, index) in currentDayData.events" :key="item.id" class="relative group cursor-default" :data-id="item.id">
+                        
+                        <!-- Timeline Dot -->
+                        <div class="absolute -left-[5px] top-3 w-[10px] h-[10px] rounded-full bg-[#F4EAE0] border-[2px] border-[#AA5F58] z-10"></div>
+                        
+                        <!-- Time Header -->
+                        <div class="mb-1 pl-4 flex justify-between items-baseline">
+                            <span class="text-xl font-black text-[#AA5F58] font-eng">{{ item.time }}</span>
+                            <!-- Drag Handle -->
+                            <div class="drag-handle text-gray-300 hover:text-[#AA5F58] px-2 py-1 cursor-grab active:cursor-grabbing">
+                                <i class="fa-solid fa-grip-vertical"></i>
+                            </div>
+                        </div>
+
+                        <!-- Card -->
+                        <div class="ml-4 bg-[#FFFDFC] rounded-2xl p-4 shadow-sm border-b-2 border-r-2 border-gray-100 active:scale-[0.99] transition-transform duration-200 relative overflow-hidden"
+                             @click="editItem(item)"> 
+                            
+                            <!-- Map Button -->
+                            <button v-if="item.lat || item.location" @click.stop="openMapSingle(item)" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#AA5F58]/10 text-[#AA5F58] flex items-center justify-center hover:bg-[#AA5F58] hover:text-white transition z-20">
+                                <i class="fa-solid fa-location-arrow"></i>
+                            </button>
+
+                            <div class="flex items-start gap-3 pr-10">
+                                <div class="w-10 h-10 rounded-xl bg-[#AA5F58]/5 text-[#AA5F58] flex items-center justify-center flex-shrink-0 text-lg">
+                                    <i :class="getIcon(item.type)"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-800 leading-tight mb-1">{{ item.title }}</h3>
+                                    <p class="text-sm text-[#5B4F63] whitespace-pre-line leading-relaxed opacity-90">{{ item.desc }}</p>
+                                    <div v-if="item.notes" class="mt-3 p-2 bg-yellow-50/50 rounded-lg text-xs text-gray-500 border border-yellow-100 flex items-start gap-2">
+                                        <i class="fa-solid fa-note-sticky text-yellow-400 mt-0.5"></i> <span>{{ item.notes }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Button -->
+                <button @click="addNewItem" class="ml-4 mt-8 w-[calc(100%-1rem)] py-4 border-2 border-dashed border-[#AA5F58]/30 rounded-2xl text-[#AA5F58] font-bold hover:bg-[#AA5F58]/5 transition flex items-center justify-center gap-2 mb-8">
+                    <i class="fa-solid fa-plus"></i> 新增行程
+                </button>
+            </div>
+
+            <!-- Map View -->
+            <div v-show="currentView === 'map'" class="h-full w-full absolute top-0 left-0 bg-gray-100 flex flex-col">
+                <div id="map" class="flex-1"></div>
+                <div class="absolute bottom-24 left-4 right-4 bg-white/95 backdrop-blur rounded-2xl p-4 shadow-xl z-[1000] border border-gray-100 flex justify-between items-center">
+                    <div>
+                        <p class="text-xs text-gray-400 font-bold mb-0.5">MAP VIEW</p>
+                        <p class="text-lg font-bold text-[#AA5F58]">{{ currentDayData.date }}</p>
+                    </div>
+                    <button @click="locateMe" class="bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md active:scale-95 transition">
+                        <i class="fa-solid fa-crosshairs mr-1"></i> 定位
+                    </button>
+                </div>
+            </div>
+
+            <!-- Wallet View -->
+            <div v-if="currentView === 'wallet'" class="px-5 py-6 space-y-6">
+                <!-- Calculator -->
+                <div class="bg-gradient-to-br from-[#AA5F58] to-[#8E4A44] text-white rounded-3xl p-6 shadow-xl shadow-[#AA5F58]/20 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                    <h3 class="text-sm font-bold opacity-80 mb-4 flex items-center"><i class="fa-solid fa-coins mr-2"></i> 匯率換算 (KRW ↔ TWD)</h3>
+                    <div class="flex flex-col gap-4 relative z-10">
+                        <div class="flex items-center gap-3 bg-white/10 rounded-xl p-1 border border-white/20">
+                            <div class="w-12 h-10 flex items-center justify-center font-bold text-sm bg-white/20 rounded-lg">₩</div>
+                            <input v-model="converter.krw" type="number" placeholder="韓幣金額" class="flex-1 bg-transparent text-2xl font-black text-white placeholder-white/40 focus:outline-none p-1 font-eng">
+                        </div>
+                        <div class="flex justify-center -my-2 opacity-60"><i class="fa-solid fa-arrow-down"></i></div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-10 flex items-center justify-center font-bold text-sm opacity-70">NT$</div>
+                            <div class="flex-1 text-3xl font-black text-white font-eng">{{ convertedTwd }}</div>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-[10px] text-right opacity-50">匯率: {{ exchangeRate }}</div>
+                </div>
+
+                <!-- Expenses -->
+                <div>
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <h3 class="font-bold text-xl text-gray-700">記帳本</h3>
+                        <div class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-lg">
+                            總支出: <span class="font-eng font-bold text-[#AA5F58]">₩{{ formatNumber(totalExpense) }}</span>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="p-4 bg-gray-50 border-b border-gray-100 space-y-2">
+                            <div class="flex gap-2">
+                                <input v-model="newExpense.item" placeholder="項目" class="flex-[2] bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#AA5F58]">
+                                <input v-model="newExpense.amount" type="number" placeholder="金額" class="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#AA5F58]">
+                            </div>
+                            <button @click="addExpense" class="w-full bg-[#AA5F58] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md active:scale-95 transition">新增支出</button>
+                        </div>
+                        <div class="max-h-[300px] overflow-y-auto">
+                            <div v-if="expenses.length === 0" class="p-8 text-center text-gray-400 text-sm">暫無紀錄</div>
+                            <ul v-else class="divide-y divide-gray-50">
+                                <li v-for="(exp, idx) in expenses" :key="idx" class="p-4 flex justify-between items-center">
+                                    <div><p class="font-bold text-gray-800 text-sm">{{ exp.item }}</p></div>
+                                    <div class="text-right"><p class="font-bold text-[#AA5F58] font-eng text-sm">₩{{ formatNumber(exp.amount) }}</p></div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 3. Bottom Nav (修正版布局) -->
+        <nav class="flex-none bg-[#FFFDFC]/95 backdrop-blur-xl border-t border-gray-200 pb-safe pt-1 z-[40] shadow-[0_-5px_20px_rgba(0,0,0,0.03)]">
+            <div class="flex flex-col h-16 w-full">
+                <!-- 容器：使用 flex justify-between 確保兩端對齊 -->
+                <div class="flex items-center justify-between px-2 h-full w-full gap-2">
+                    
+                    <!-- Days (左側可滑動區) -->
+                    <div class="flex-1 flex gap-1 overflow-x-auto no-scrollbar min-w-0">
+                        <button v-for="(day, index) in tripData" :key="index" 
+                            @click="switchDay(index)"
+                            class="flex-shrink-0 flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 border border-transparent snap-center"
+                            :class="currentView === 'itinerary' && currentDay === index ? 'bg-[#AA5F58] text-white shadow-md' : 'bg-gray-50 text-gray-400 border-gray-100 hover:bg-gray-100'">
+                            <span class="text-[8px] font-bold font-eng opacity-80 uppercase leading-none mb-0.5">Day</span>
+                            <span class="text-lg font-black leading-none font-eng">{{ day.dayNum }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="w-[1px] h-8 bg-gray-200 flex-shrink-0"></div>
+
+                    <!-- Tools (右側固定區) -->
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button @click="currentView = 'map'; initMap()" 
+                            class="flex-col items-center justify-center w-12 h-12 rounded-xl transition-colors flex"
+                            :class="currentView === 'map' ? 'text-[#AA5F58] bg-[#AA5F58]/10' : 'text-gray-400 hover:text-gray-600'">
+                            <i class="fa-solid fa-map text-lg"></i>
+                            <span class="text-[9px] font-bold mt-0.5">地圖</span>
+                        </button>
+                        <button @click="currentView = 'wallet'" 
+                            class="flex-col items-center justify-center w-12 h-12 rounded-xl transition-colors flex"
+                            :class="currentView === 'wallet' ? 'text-[#AA5F58] bg-[#AA5F58]/10' : 'text-gray-400 hover:text-gray-600'">
+                            <i class="fa-solid fa-wallet text-lg"></i>
+                            <span class="text-[9px] font-bold mt-0.5">錢包</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 4. Modal -->
+        <transition name="slide-up">
+            <div v-if="showModal" class="fixed inset-0 z-50 flex items-end justify-center">
+                <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity" @click="showModal = false"></div>
+                <div class="bg-[#FFFDFC] w-full max-w-md rounded-t-[2rem] p-6 shadow-2xl transform transition-all z-10 max-h-[85vh] overflow-y-auto">
+                    <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+                    <h3 class="text-xl font-black text-[#AA5F58] mb-6 flex items-center gap-2">
+                        {{ isEditing ? '編輯行程' : '新增行程' }}
+                    </h3>
+                    <div class="space-y-5">
+                        <div class="flex gap-4">
+                            <div class="flex-1">
+                                <label class="text-xs font-bold text-gray-400 block mb-1">Time</label>
+                                <input v-model="editForm.time" type="time" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 font-eng font-bold text-lg focus:outline-none focus:border-[#AA5F58]">
+                            </div>
+                            <div class="flex-[2]">
+                                <label class="text-xs font-bold text-gray-400 block mb-1">Type</label>
+                                <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                    <button v-for="type in ['food', 'shopping', 'camera', 'flight', 'transport', 'hotel', 'coffee', 'medical']" :key="type" @click="editForm.type = type" class="w-11 h-11 rounded-full flex items-center justify-center border-2 flex-shrink-0" :class="editForm.type === type ? 'bg-[#AA5F58] text-white border-[#AA5F58]' : 'bg-white text-gray-300 border-gray-100'"><i :class="getIcon(type)"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-400 block mb-1">Title</label>
+                            <input v-model="editForm.title" type="text" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 font-bold focus:outline-none focus:border-[#AA5F58]" placeholder="名稱">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-400 block mb-1">Location</label>
+                            <div class="flex gap-2">
+                                <input v-model="editForm.location" type="text" class="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#AA5F58]" placeholder="地標">
+                                <button @click="simulateGeoCoding" class="px-4 bg-blue-50 text-blue-500 rounded-2xl font-bold text-xs whitespace-nowrap"><i class="fa-solid fa-map-pin"></i> 抓取</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-400 block mb-1">Description</label>
+                            <textarea v-model="editForm.desc" rows="3" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-[#AA5F58]"></textarea>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-400 block mb-1">Memo</label>
+                            <input v-model="editForm.notes" type="text" class="w-full bg-yellow-50 border border-yellow-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-yellow-400">
+                        </div>
+                    </div>
+                    <div class="mt-8 flex gap-3 pb-safe">
+                        <button v-if="isEditing" @click="deleteItem" class="w-14 h-14 flex items-center justify-center bg-red-50 text-red-500 rounded-2xl"><i class="fa-solid fa-trash-can"></i></button>
+                        <button @click="showModal = false" class="flex-1 h-14 bg-gray-100 text-gray-500 font-bold rounded-2xl">取消</button>
+                        <button @click="saveItem" class="flex-[2] h-14 bg-[#AA5F58] text-white font-bold rounded-2xl shadow-lg">儲存</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+
+        createApp({
+            setup() {
+                const currentDay = ref(0);
+                const currentView = ref('itinerary');
+                const kstTime = ref('--:--');
+                const showModal = ref(false);
+                const isEditing = ref(false);
+                const editForm = ref({});
+                const mapInstance = ref(null);
+                const mainContent = ref(null); 
+                const exchangeRate = ref(0.0235);
+                const converter = ref({ krw: '' });
+                const expenses = ref([]);
+                const newExpense = ref({ item: '', amount: '', payer: '我' });
+                const eventsContainer = ref(null);
+
+                // 行程資料 (Updated)
+                const tripData = ref([
+                    {
+                        dayNum: 1, date: '12/31 (WED)', summary: '抵達首爾 → 入住 → 元堂排骨 → 明洞散步',
+                        events: [
+                            { id: 101, time: '07:05', title: 'BR170 出發', desc: 'BR170 (07:05 TPE → 10:30 ICN)', type: 'flight', location: 'Taoyuan International Airport', lat: 25.0797, lng: 121.2342 },
+                            { id: 101_2, time: '10:30', title: '抵達仁川機場', desc: '入境後前往航站1 / 5B搭乘機場巴士6015', type: 'landing', location: 'Incheon International Airport', lat: 37.46019, lng: 126.44069 },
+                            { id: 102, time: '12:30', title: '抵達飯店 / 寄行李', desc: 'Ibis Ambassador Seoul Myeongdong\n先寄放行李', type: 'hotel', location: 'Ibis Ambassador Seoul Myeongdong', lat: 37.5640, lng: 126.9820 },
+                            { id: 103, time: '13:00', title: '午餐：元堂排骨', desc: '馬鈴薯1號店', type: 'food', location: 'Wondang Gamjatang', lat: 37.5635, lng: 126.9845 },
+                            { id: 103_2, time: '15:00', title: '飯店 Check-in / 休息', desc: '回飯店辦理入住手續', type: 'hotel', location: 'Ibis Ambassador Seoul Myeongdong', lat: 37.5640, lng: 126.9820 },
+                            { id: 103_3, time: '17:00', title: '明洞散步', desc: '隨意逛逛明洞商圈', type: 'walk', location: 'Myeongdong Shopping Street', lat: 37.5630, lng: 126.9830 },
+                            { id: 104, time: '19:00', title: '晚餐：匠人鐵板雞', desc: '明洞店', type: 'food', location: 'Jang-in Dakgalbi', lat: 37.5612, lng: 126.9850 },
+                            { id: 1051, time: '20:00', title: '逛街：ept', desc: '潮鞋品牌', type: 'shopping', location: 'ept', lat: 37.5620, lng: 126.9830 },
+                            { id: 1052, time: '20:20', title: '逛街：emis', desc: '帽子/包包', type: 'shopping', location: 'emis Myeongdong', lat: 37.5622, lng: 126.9832 },
+                            { id: 1053, time: '20:40', title: '逛街：nyu nyu', desc: '飾品批發', type: 'shopping', location: 'nyu nyu Myeongdong', lat: 37.5625, lng: 126.9835 },
+                            { id: 1054, time: '21:00', title: '逛街：blue elephant', desc: '墨鏡', type: 'shopping', location: 'Blue Elephant Myeongdong', lat: 37.5628, lng: 126.9838 },
+                            { id: 1055, time: '21:20', title: '逛街：Musinsa Standard', desc: '韓版 Uniqlo', type: 'shopping', location: 'Musinsa Standard Myeongdong', lat: 37.5630, lng: 126.9840 },
+                            { id: 1061, time: '21:40', title: '逛街：Covernat', desc: '休閒服飾', type: 'shopping', location: 'Covernat Myeongdong', lat: 37.5632, lng: 126.9842 },
+                            { id: 1062, time: '22:00', title: '逛街：Butter Shop', desc: '文創雜貨', type: 'shopping', location: 'Butter Shop Myeongdong', lat: 37.5635, lng: 126.9845 },
+                            { id: 1063, time: '22:20', title: '逛街：Marithe', desc: '法式風格服飾', type: 'shopping', location: 'Marithe Francois Girbaud Myeongdong', lat: 37.5638, lng: 126.9848 },
+                            { id: 1064, time: '22:40', title: '逛街：MATIN Kim', desc: '設計師品牌', type: 'shopping', location: 'Matin Kim Myeongdong', lat: 37.5640, lng: 126.9850 },
+                            { id: 107, time: '23:30', title: '宵夜：橋村炸雞', desc: '外送回飯店吃', type: 'food', notes: '記得請櫃檯幫忙叫' }
+                        ]
+                    },
+                    {
+                        dayNum: 2, date: '1/1 (THU)', summary: '明洞一日逛 + 吃 + 購物',
+                        events: [
+                            { id: 201, time: '09:00', title: '早餐', desc: 'Café Les Parisiens', type: 'coffee', location: 'Cafe Les Parisiens', lat: 37.5600, lng: 126.9800 },
+                            { id: 202, time: '10:30', title: '樂天百貨', desc: '樂天百貨、樂天 Young Plaza', type: 'shopping', location: 'Lotte Department Store', lat: 37.5650, lng: 126.9815 },
+                            { id: 203, time: '13:00', title: '午餐：全州會館', desc: '明洞全州會館 (石鍋拌飯)', type: 'food', location: 'Jeonju Jungang Hoegwan', lat: 37.5615, lng: 126.9855 },
+                            { id: 204, time: '15:00', title: '下午逛街', desc: '明洞大創 (Daiso Main), Olive Young, 新世界百貨免稅店', type: 'shopping', location: 'Daiso Myeongdong', lat: 37.5608, lng: 126.9860 },
+                            { id: 205, time: '19:00', title: '晚餐：王妃家', desc: '王妃家烤肉', type: 'food', location: 'Wangbijib', lat: 37.5610, lng: 126.9840 }
+                        ]
+                    },
+                    {
+                        dayNum: 3, date: '1/2 (FRI)', summary: 'Heyday 醫美 + 輕鬆行程',
+                        events: [
+                            { id: 301, time: '09:00', title: '早餐：Isaac Toast', desc: '明洞聖堂店', type: 'food', location: 'Isaac Toast', lat: 37.5630, lng: 126.9865 },
+                            { id: 302, time: '10:00', title: 'Heyday 醫美', desc: '10:00-12:00 醫美施作\n(術後避免劇烈運動/日曬)', type: 'medical', location: 'Heyday Clinic', lat: 37.5620, lng: 126.9840, notes: '素顏前往，帶護照' },
+                            { id: 303, time: '13:00', title: '午餐：神仙雪濃湯', desc: '明洞店', type: 'food', location: 'Sinseon Seolnongtang', lat: 37.5638, lng: 126.9852 },
+                            { id: 304, time: '14:30', title: '下午逛街 (輕鬆)', desc: 'SPAO, Olive Young, 8 Seconds, 明洞大創', type: 'shopping', location: 'SPAO Myeongdong', lat: 37.5622, lng: 126.9835 },
+                            { id: 305, time: '19:00', title: '晚餐：黃金牧場', desc: '烤肉', type: 'food', location: 'Golden Farm', lat: 37.5625, lng: 126.9845 }
+                        ]
+                    },
+                    {
+                        dayNum: 4, date: '1/3 (SAT)', summary: '聖水洞：咖啡 + 文青 + 拍照',
+                        events: [
+                            { id: 401, time: '09:00', title: '早餐', desc: '明洞本粥店 或 藍瓶咖啡外帶', type: 'food', location: 'Bonjuk', lat: 37.5630, lng: 126.9850 },
+                            { id: 402, time: '10:30', title: '前往聖水洞', desc: '交通：乙支路入口 → 聖水站 (地鐵2號線, 20-25分)', type: 'transport', location: 'Seongsu Station', lat: 37.5445, lng: 127.0560 },
+                            { id: 403, time: '11:00', title: '聖水咖啡街', desc: 'Cafe Onion 聖水店, Standard Bread', type: 'coffee', location: 'Cafe Onion Seongsu', lat: 37.5447, lng: 127.0520 },
+                            { id: 404, time: '13:00', title: '午餐：傳說馬鈴薯湯', desc: 'Somunnan Seongsu Gamjatang', type: 'food', location: 'Somunnan Seongsu Gamjatang', lat: 37.5420, lng: 127.0540 },
+                            { id: 4051, time: '14:30', title: 'TAMBURINS', desc: '香氛', type: 'shopping', location: 'Tamburins Seongsu', lat: 37.5430, lng: 127.0550 },
+                            { id: 4052, time: '14:50', title: 'Dior 概念店', desc: '拍照打卡', type: 'camera', location: 'Dior Seongsu', lat: 37.5432, lng: 127.0552 },
+                            { id: 4053, time: '15:10', title: 'dasique', desc: '彩妝', type: 'shopping', location: 'dasique Seongsu', lat: 37.5434, lng: 127.0554 },
+                            { id: 4054, time: '15:30', title: 'MLB 旗艦店', desc: '服飾', type: 'shopping', location: 'MLB Seongsu', lat: 37.5436, lng: 127.0556 },
+                            { id: 4055, time: '15:50', title: 'Blue Elephant', desc: '墨鏡', type: 'shopping', location: 'Blue Elephant Seongsu', lat: 37.5438, lng: 127.0558 },
+                            { id: 4056, time: '16:10', title: 'TETO', desc: '毛巾/居家', type: 'shopping', location: 'TETO Seongsu', lat: 37.5440, lng: 127.0560 },
+                            { id: 4061, time: '16:30', title: 'Matin Kim 旗艦店', desc: '必逛', type: 'shopping', location: 'Matin Kim Seongsu', lat: 37.5435, lng: 127.0565 },
+                            { id: 4062, time: '16:50', title: 'STAND OIL', desc: '包包', type: 'shopping', location: 'STAND OIL Seongsu', lat: 37.5437, lng: 127.0568 },
+                            { id: 4063, time: '17:10', title: 'EQL', desc: '文創雜貨', type: 'shopping', location: 'EQL Seongsu', lat: 37.5439, lng: 127.0570 },
+                            { id: 4064, time: '17:30', title: 'Musinsa Store', desc: '服飾', type: 'shopping', location: 'Musinsa Seongsu', lat: 37.5441, lng: 127.0572 },
+                            { id: 4065, time: '17:50', title: 'Fwee', desc: '美妝', type: 'shopping', location: 'Fwee Seongsu', lat: 37.5443, lng: 127.0574 },
+                            { id: 407, time: '19:00', title: '晚餐：聖水洞', desc: '奶奶的食譜 (Seongsu Darak) 或 BriBeet', type: 'food', location: 'Grandma\'s Recipe', lat: 37.5460, lng: 127.0420 }
+                        ]
+                    },
+                    {
+                        dayNum: 5, date: '1/4 (SUN)', summary: '提早出發 → 機場 → 回家',
+                        events: [
+                            { id: 501, time: '07:00', title: '早餐 & 退房', desc: 'Starbucks (機場/附近) / 辦理退房', type: 'coffee', location: 'Starbucks', lat: 37.5640, lng: 126.9825 },
+                            { id: 502, time: '08:00', title: '前往機場', desc: '搭乘 AREX / 巴士前往仁川機場', type: 'transport', location: 'Incheon International Airport', lat: 37.4602, lng: 126.4407 },
+                            { id: 503, time: '09:10', title: '抵達仁川機場', desc: '建議 2.5 小時前抵達辦理登機、退稅', type: 'landing', location: 'Incheon International Airport', lat: 37.4602, lng: 126.4407 },
+                            { id: 504, time: '11:40', title: 'BR169 回家', desc: 'BR169 (11:40 ICN → 13:30 TPE)', type: 'flight', location: 'Incheon Airport', lat: 37.4602, lng: 126.4407 }
+                        ]
+                    }
+                ]);
+
+                // 計算屬性
+                const currentDayData = computed(() => {
+                    return tripData.value[currentDay.value] || tripData.value[0];
+                });
+
+                const convertedTwd = computed(() => {
+                    return Math.round((parseFloat(converter.value.krw) || 0) * exchangeRate.value);
+                });
+
+                const totalExpense = computed(() => {
+                    return expenses.value.reduce((sum, item) => sum + (item.amount || 0), 0);
+                });
+
+                const getIcon = (type) => {
+                    const map = {
+                        flight: 'fa-plane', landing: 'fa-plane-arrival', transport: 'fa-train-subway',
+                        hotel: 'fa-bed', food: 'fa-utensils', shopping: 'fa-bag-shopping',
+                        camera: 'fa-camera', coffee: 'fa-mug-hot', medical: 'fa-syringe', walk: 'fa-person-walking'
+                    };
+                    return `fa-solid ${map[type] || 'fa-circle'}`;
+                };
+
+                const startClock = () => {
+                    setInterval(() => {
+                        const now = new Date();
+                        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+                        const kst = new Date(utc + (3600000 * 9));
+                        kstTime.value = `${String(kst.getHours()).padStart(2, '0')}:${String(kst.getMinutes()).padStart(2, '0')}`;
+                    }, 1000);
+                };
+
+                // 天氣 API (Open-Meteo)
+                const fetchWeather = async () => {
+                    try {
+                        const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current=temperature_2m,weather_code&timezone=Asia%2FSeoul');
+                        const data = await response.json();
+                        if (data && data.current) {
+                            const temp = Math.round(data.current.temperature_2m);
+                            document.getElementById('current-weather').innerText = `首爾 ${temp}°C`;
+                            const code = data.current.weather_code;
+                            const iconEl = document.getElementById('weather-icon');
+                            if (code <= 1) iconEl.className = 'fa-solid fa-sun text-[#AA5F58]';
+                            else if (code <= 3) iconEl.className = 'fa-solid fa-cloud-sun text-[#AA5F58]';
+                            else if (code >= 51 && code <= 67) iconEl.className = 'fa-solid fa-cloud-rain text-[#AA5F58]';
+                            else if (code >= 71) iconEl.className = 'fa-solid fa-snowflake text-[#AA5F58]';
+                            else iconEl.className = 'fa-solid fa-cloud text-[#AA5F58]';
+                        }
+                    } catch (e) {
+                        console.error("Weather fetch failed", e);
+                    }
+                };
+
+                const switchDay = (index) => {
+                    currentDay.value = index;
+                    currentView.value = 'itinerary';
+                    if (mainContent.value) {
+                        mainContent.value.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                    nextTick(() => initSortable());
+                };
+
+                // --- CRUD Logic ---
+                const openModal = (editing = false, item = {}) => {
+                    isEditing.value = editing;
+                    editForm.value = editing ? JSON.parse(JSON.stringify(item)) : { time: '12:00', type: 'food', notes: '', title: '', desc: '', location: '', lat: null, lng: null };
+                    showModal.value = true;
+                };
+
+                const addNewItem = () => openModal(false);
+                const editItem = (item) => openModal(true, item);
+
+                const saveItem = () => {
+                    if (!editForm.value.time || !editForm.value.title || !editForm.value.type) {
+                        alert('請填寫時間、標題和類型。');
+                        return;
+                    }
+                    if (isEditing.value) {
+                        const idx = currentDayData.value.events.findIndex(e => e.id === editForm.value.id);
+                        if (idx !== -1) currentDayData.value.events[idx] = { ...editForm.value };
+                    } else {
+                        editForm.value.id = Date.now();
+                        currentDayData.value.events.push({ ...editForm.value });
+                    }
+                    showModal.value = false;
+                };
+
+                const deleteItem = () => {
+                    if (confirm('確定要刪除這個行程嗎？')) {
+                        const idx = currentDayData.value.events.findIndex(e => e.id === editForm.value.id);
+                        if (idx !== -1) currentDayData.value.events.splice(idx, 1);
+                        showModal.value = false;
+                    }
+                };
+
+                const simulateGeoCoding = () => {
+                    if (!editForm.value.location) {
+                        alert("請先輸入地點名稱");
+                        return;
+                    }
+                    editForm.value.lat = 37.56 + (Math.random() * 0.02 - 0.01);
+                    editForm.value.lng = 126.98 + (Math.random() * 0.02 - 0.01);
+                    alert(`已抓取座標: ${editForm.value.lat.toFixed(4)}, ${editForm.value.lng.toFixed(4)}`);
+                };
+
+                const openMapSingle = (item) => {
+                    if (item.lat && item.lng) {
+                        currentView.value = 'map';
+                        nextTick(() => initMap([item]));
+                    } else if (item.location) {
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location + ' 首爾')}`, '_blank');
+                    }
+                };
+
+                const initMap = (specificItems = null) => {
+                    if (mapInstance.value) {
+                        mapInstance.value.remove();
+                        mapInstance.value = null;
+                    }
+                    const center = [37.5665, 126.9780];
+                    mapInstance.value = L.map('map', { zoomControl: false }).setView(center, 13);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                        attribution: '&copy; CARTO'
+                    }).addTo(mapInstance.value);
+
+                    const myIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div style='background-color:#4285F4; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(66,133,244,0.5);'></div>",
+                        iconSize: [14, 14], iconAnchor: [7, 7]
+                    });
+                    L.marker([37.5640, 126.9820], { icon: myIcon }).addTo(mapInstance.value).bindPopup("我現在的位置");
+
+                    const itemsToShow = specificItems || currentDayData.value.events;
+                    const validPoints = [];
+                    itemsToShow.forEach(event => {
+                        if (event.lat && event.lng) {
+                            const markerIcon = L.divIcon({
+                                className: 'custom-div-icon',
+                                html: `<div class="marker-pin"></div><i class="fa-solid ${getIcon(event.type).replace('fa-solid ', '')} text-white absolute top-[2px] left-[7px] text-[14px] z-10"></i>`,
+                                iconSize: [30, 42], iconAnchor: [15, 42]
+                            });
+                            L.marker([event.lat, event.lng], { icon: markerIcon }).addTo(mapInstance.value)
+                                .bindPopup(`<div class="font-bold text-[#AA5F58] mb-1">${event.time} ${event.title}</div><div class="text-xs text-gray-500">${event.location}</div>`);
+                            validPoints.push([event.lat, event.lng]);
+                        }
+                    });
+                    if (validPoints.length > 0) {
+                        validPoints.push([37.5640, 126.9820]); 
+                        mapInstance.value.fitBounds(L.latLngBounds(validPoints), { padding: [50, 80] });
+                    }
+                };
+
+                const locateMe = () => { mapInstance.value.setView([37.5640, 126.9820], 15); };
+
+                // --- SortableJS ---
+                const initSortable = () => {
+                    const el = eventsContainer.value;
+                    if (el) {
+                        new Sortable(el, {
+                            handle: '.drag-handle',
+                            animation: 150,
+                            ghostClass: 'sortable-ghost',
+                            onEnd: (evt) => {
+                                const item = currentDayData.value.events.splice(evt.oldIndex, 1)[0];
+                                currentDayData.value.events.splice(evt.newIndex, 0, item);
+                            }
+                        });
+                    }
+                };
+
+                const addExpense = () => {
+                    if (!newExpense.value.item || !newExpense.value.amount) return;
+                    expenses.value.unshift({ ...newExpense.value, amount: parseInt(newExpense.value.amount) });
+                    newExpense.value = { item: '', amount: '', payer: '我' };
+                };
+
+                const formatNumber = (num) => num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+                watch(currentView, (newVal) => {
+                    if (newVal === 'map') nextTick(() => initMap());
+                });
+
+                onMounted(() => {
+                    startClock();
+                    fetchWeather();
+                    initSortable();
+                });
+
+                return {
+                    currentDay, currentDayData, currentView, kstTime, tripData,
+                    showModal, isEditing, editForm, mainContent, eventsContainer,
+                    openModal, addNewItem, editItem, saveItem, deleteItem, simulateGeoCoding,
+                    openMapSingle, initMap, locateMe, getIcon,
+                    converter, exchangeRate, convertedTwd, expenses, newExpense, addExpense, totalExpense, formatNumber,
+                    switchDay
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
